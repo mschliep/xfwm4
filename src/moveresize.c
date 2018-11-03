@@ -46,6 +46,7 @@
 #include "poswin.h"
 #include "screen.h"
 #include "settings.h"
+#include "stacking.h"
 #include "transients.h"
 #include "event_filter.h"
 #include "wireframe.h"
@@ -1116,6 +1117,8 @@ clientMoveEventFilter (XEvent * xevent, gpointer data)
             wc.x = c->x;
             wc.y = c->y;
             clientConfigure (c, &wc, changes, passdata->configure_flags);
+            
+    
             /* Configure applied, clear the flags */
             passdata->configure_flags = NO_CFG_FLAG;
         }
@@ -1148,6 +1151,9 @@ clientMoveEventFilter (XEvent * xevent, gpointer data)
         gtk_main_quit ();
     }
 
+    /* Lower fullscreen clients that overlap with the new position */
+    clientLowerFullscreenClients(c, TRUE);
+
     return status;
 }
 
@@ -1163,6 +1169,7 @@ clientMove (Client * c, XEvent * ev)
 
     g_return_if_fail (c != NULL);
     TRACE ("entering clientDoMove");
+
 
     if (FLAG_TEST (c->xfwm_flags, XFWM_FLAG_MOVING_RESIZING) ||
         !FLAG_TEST (c->xfwm_flags, XFWM_FLAG_HAS_MOVE))
@@ -1694,6 +1701,9 @@ clientResizeEventFilter (XEvent * xevent, gpointer data)
         gtk_main_quit ();
     }
 
+    /* Lower fullscreen clients that overlap with the new position */
+    clientLowerFullscreenClients(c, TRUE);
+
     return status;
 }
 
@@ -1848,6 +1858,7 @@ clientResize (Client * c, int handle, XEvent * ev)
         }
     }
     clientReconfigure (c, NO_CFG_FLAG);
+
 
     if (passdata.button != AnyButton && !passdata.released)
     {

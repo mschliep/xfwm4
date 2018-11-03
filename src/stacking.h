@@ -50,8 +50,6 @@ void                     clientRaise                            (Client *,
                                                                  Window);
 void                     clientLower                            (Client *,
                                                                  Window);
-gboolean                 clientAdjustFullscreenLayer            (Client *,
-                                                                 gboolean);
 void                     clientAddToList                        (Client *);
 void                     clientRemoveFromList                   (Client *);
 GList                   *clientGetStackList                     (ScreenInfo *);
@@ -60,5 +58,12 @@ Client                  *clientGetLastRaise                     (ScreenInfo *);
 void                     clientClearLastRaise                   (ScreenInfo *);
 void                     clientClearDelayedRaise                (void);
 void                     clientResetDelayedRaise                (ScreenInfo *);
+
+/**
+ * Lower fullscreen clients if the supplied client is ontop of the fullscreen clients.
+ * Apply the stack if set.
+ */
+void                     clientLowerFullscreenClients          (Client *,
+                                                                gboolean);
 
 #endif /* INC_STACKING_H */

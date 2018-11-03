@@ -322,6 +322,16 @@ clientRaise (Client * c, Window wsibling)
 
     if (FLAG_TEST (c->xfwm_flags, XFWM_FLAG_MANAGED))
     {
+        clientLowerFullscreenClients(c, FALSE);
+
+        /* Raise fullscreen client if it was lowered before*/
+        if (FLAG_TEST(c->flags, CLIENT_FLAG_FULLSCREEN) && c-> win_layer != WIN_LAYER_FULLSCREEN)
+        {
+            c->fullscreen_old_layer = c->win_layer;
+            c->win_layer = WIN_LAYER_FULLSCREEN;
+        }
+
+
         /* Copy the existing window stack temporarily as reference */
         windows_stack_copy = g_list_copy (screen_info->windows_stack);
         /* Search for the window that will be just on top of the raised window  */
@@ -529,34 +539,6 @@ clientLower (Client * c, Window wsibling)
     }
 }
 
-gboolean
-clientAdjustFullscreenLayer (Client *c, gboolean set)
-{
-    g_return_val_if_fail (c, FALSE);
-
-    TRACE ("entering clientAdjustFullscreenLayer");
-    TRACE ("%s fullscreen layer for  \"%s\" (0x%lx)", set ? "Setting" : "Unsetting", c->name, c->window);
-
-    if (set)
-    {
-        if (FLAG_TEST(c->flags, CLIENT_FLAG_FULLSCREEN))
-        {
-            clientSetLayer (c, WIN_LAYER_FULLSCREEN);
-            return TRUE;
-        }
-    }
-    else if (c->win_layer == WIN_LAYER_FULLSCREEN)
-    {
-        if (FLAG_TEST(c->flags, CLIENT_FLAG_FULLSCREEN))
-        {
-            TRACE ("Moving \"%s\" (0x%lx) to initial layer %d", c->name, c->window, c->fullscreen_old_layer);
-            clientSetLayer (c, c->fullscreen_old_layer);
-            return TRUE;
-        }
-    }
-    return FALSE;
-}
-
 void
 clientAddToList (Client * c)
 {
@@ -714,3 +696,53 @@ clientResetDelayedRaise (ScreenInfo *screen_info)
                                         NULL, NULL);
 }
 
+void
+clientLowerFullscreenClients (Client *c, gboolean applyStack)
+{
+    ScreenInfo *screen_info;
+    DisplayInfo *display_info;
+    Client *c2;
+    GList *sibling;
+    GList *list;
+    gboolean changed;
+
+    /* Never lower for a dock */
+    if(c->win_layer == WIN_LAYER_DOCK)
+    {
+        return;
+    }
+
+
+    screen_info = c->screen_info;
+    display_info = screen_info->display_info;
+    sibling = NULL;
+    changed = FALSE;
+
+
+    /*Lower any fullscreen windows on the same monitor*/
+    for (list = screen_info->windows_stack; list; list = g_list_next (list))
+    {
+        c2 = (Client *) list->data;
+        if ((c2 != c) && FLAG_TEST(c2->flags, CLIENT_FLAG_FULLSCREEN)
+                && c2->win_layer == WIN_LAYER_FULLSCREEN
+                && c2->fullscreen_old_layer <= c->win_layer)
+        {
+            if(clientCheckSameMonitor(c, c2))
+            {
+                c2->win_layer = c2->fullscreen_old_layer;
+                /* If there is one, look for its place in the list */
+                sibling = g_list_find (screen_info->windows_stack, (gconstpointer) c);
+                /* Place the lowered window just before it */
+                screen_info->windows_stack = g_list_remove (screen_info->windows_stack, (gconstpointer) c2);
+                screen_info->windows_stack = g_list_insert_before (screen_info->windows_stack, sibling, c2);
+                changed = TRUE;
+            }
+        }
+    }
+
+    if(applyStack && changed)
+    {
+        clientApplyStackList (screen_info);
+        clientSetNetClientList (c->screen_info, display_info->atoms[NET_CLIENT_LIST_STACKING], screen_info->windows_stack);
+    }
+}
